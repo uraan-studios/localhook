@@ -12,6 +12,7 @@ import (
 func main() {
 	router := chi.NewRouter()
 	router.Post("/payment/webhook", handlePamentWebhook)
+	router.Get("/", handleHome)
 
 	http.ListenAndServe(":3000", router)
 }
@@ -19,6 +20,10 @@ func main() {
 type WebhookRequest struct {
 	Amount  int    `json:"amount"`
 	Message string `json:"message"`
+}
+
+func handleHome(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("<html><body><h1>HELLO WORLD</h1></body></html>"))
 }
 
 func handlePamentWebhook(w http.ResponseWriter, r *http.Request) {
