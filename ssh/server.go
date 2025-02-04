@@ -94,7 +94,7 @@ func randomPort() int {
 func (h *SSHHandler) HandleSSHSession(session ssh.Session) {
 	input := session
 	output := session
-	p := tea.NewProgram(ui.InitialModel(), tea.WithInput(input), tea.WithOutput(output))
+	p := tea.NewProgram(ui.NewWelcomeTerminal(), tea.WithInput(input), tea.WithOutput(output))
 
 	// Run the program and capture the model state
 	m, err := p.Run()
@@ -105,14 +105,21 @@ func (h *SSHHandler) HandleSSHSession(session ssh.Session) {
 
 	// Retrieve the user's choice from the model
 	var choice int
-	if model, ok := m.(ui.Model); ok {
-		fmt.Println(model.Choice())
-		choice = model.Choice()
+	if model, ok := m.(ui.WelcomeModel); ok {
+		fmt.Println(model.GetChoice())
+		choice = model.GetChoice()
 		// return model.Choice()
 	}
 
 	p.ReleaseTerminal()
-	session.Write([]byte(fmt.Sprintf("Terminal Killed %v", choice)))
+
+	switch choice {
+	case 1:
+		{
+
+		}
+	}
+	// session.Write([]byte(fmt.Sprintf("Terminal Killed %v", choice)))
 
 	// Create a buffer for reading user input
 	buf := make([]byte, 1024)

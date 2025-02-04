@@ -23,7 +23,7 @@ type Model struct {
 
 func InitialModel() Model {
 	return Model{
-		choices:  []string{"New Web Hook", "Delete Hook", "Donate"},
+		choices:  []string{"Tunell Web Hook", "Tunnel Local Site", "Donate"},
 		selected: make(map[int]struct{}),
 		choice:   0,
 		done:     false,
