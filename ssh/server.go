@@ -38,11 +38,12 @@ func StartSSHServer() error {
 
 	fwHandler := &ssh.ForwardedTCPHandler{}
 	server := ssh.Server{
-		Addr:    sshPort,
-		Handler: handler.HandleSSHSession,
-		PasswordHandler: func(ctx ssh.Context, password string) bool {
-			return password == ""
-		},
+		Addr:            sshPort,
+		Handler:         handler.HandleSSHSession,
+		PasswordHandler: nil,
+		// PasswordHandler: func(ctx ssh.Context, password string) bool {
+		// 	return true
+		// },
 		ServerConfigCallback: func(ctx ssh.Context) *gossh.ServerConfig {
 			cfg := &gossh.ServerConfig{
 				ServerVersion: "SSH-2.0-sendit",
@@ -51,9 +52,9 @@ func StartSSHServer() error {
 			cfg.Ciphers = []string{"chacha20-poly1305@openssh.com"}
 			return cfg
 		},
-		PublicKeyHandler: func(ctx ssh.Context, key ssh.PublicKey) bool {
-			return true
-		},
+		// PublicKeyHandler: func(ctx ssh.Context, key ssh.PublicKey) bool {
+		// 	return true
+		// },
 		LocalPortForwardingCallback: ssh.LocalPortForwardingCallback(func(ctx ssh.Context, dhost string, dport uint32) bool {
 			log.Println("Accepted forward", dhost, dport)
 			// todo: auth validation
@@ -94,7 +95,7 @@ func randomPort() int {
 func (h *SSHHandler) HandleSSHSession(session ssh.Session) {
 	input := session
 	output := session
-	p := tea.NewProgram(ui.NewWelcomeTerminal(), tea.WithInput(input), tea.WithOutput(output))
+	p := tea.NewProgram(ui.InitWlcmTerminal(), tea.WithInput(input), tea.WithOutput(output))
 
 	// Run the program and capture the model state
 	m, err := p.Run()

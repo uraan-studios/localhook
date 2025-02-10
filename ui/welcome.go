@@ -90,19 +90,10 @@ func (t *WlcmTerminal) View() string {
 	return t.model.View()
 }
 
-func (t *WlcmTerminal) InitialModel() TerminalModel {
-	return WelcomeModel{
-		choices:  []string{"Tunnel Web Hook", "Tunnel Local Site", "Donate"},
-		selected: make(map[int]struct{}),
-		choice:   0,
-		done:     false,
-	}
-}
-
-func NewWelcomeTerminal() *WlcmTerminal {
+func InitWlcmTerminal() *WlcmTerminal {
 	return &WlcmTerminal{
 		model: WelcomeModel{
-			choices:  []string{"Option 1", "Option 2", "Option 3"},
+			choices:  []string{"Tunell Web Hook", "Tunnel Local Site", "Donate"},
 			selected: make(map[int]struct{}),
 		},
 	}
