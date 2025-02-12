@@ -19,7 +19,7 @@ WORKDIR /app
 # Copy the built binary from the builder stage
 COPY --from=builder /app/bin/sshtunnel ./sshtunnel
 
-# Expose necessary ports
+# Expose necessary port
 EXPOSE 5000 2222
 
 # Expose the additional ports from 49152 to 65535
