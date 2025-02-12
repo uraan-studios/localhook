@@ -94,7 +94,7 @@ func StartSSHServer(sshPort string, httpPort int, domain string) error {
 func randomPort() int {
 	rand.Seed(time.Now().UnixNano()) // Seed the random number generator
 	min := 49150
-	max := 49500
+	max := 49250
 
 	for {
 		port := min + rand.Intn(max-min+1)
