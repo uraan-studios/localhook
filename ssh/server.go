@@ -5,7 +5,6 @@ import (
 	"log"
 	"math/rand"
 	"net"
-	"net/url"
 	"os"
 	"sync"
 	"time"
@@ -260,26 +259,26 @@ func (h *SSHHandler) HandleSSHSession(session ssh.Session) {
 
 }
 
-func CreateNewHook(localURL string, session ssh.Session) (string, error) {
-	generatedPort := randomPort()
-	id := shortid.MustGenerate()
-	destination, err := url.Parse(localURL)
-	if err != nil {
-		return "", err
-	}
+// func CreateNewHook(localURL string, session ssh.Session) (string, error) {
+// 	generatedPort := randomPort()
+// 	id := shortid.MustGenerate()
+// 	destination, err := url.Parse(localURL)
+// 	if err != nil {
+// 		return "", err
+// 	}
 
-	host := destination.Host
-	internalSession := Session{
-		Sesssion:    session,
-		Destination: destination.String(),
-		IsWebhook:   true,
-	}
-	Clients.Store(id, internalSession)
+// 	host := destination.Host
+// 	internalSession := Session{
+// 		Sesssion:    session,
+// 		Destination: destination.String(),
+// 		IsWebhook:   true,
+// 	}
+// 	Clients.Store(id, internalSession)
 
-	webhookURL := fmt.Sprintf("http://localhost:%d/%s\n", id)
-	command := fmt.Sprintf("Generate webhook: %s\n\nCommand to copy:\nssh -R 127.0.0.1:%d:%s localhost -p 2222 tunnel\n", webhookURL, generatedPort, host)
-	return command, err
-}
+// 	webhookURL := fmt.Sprintf("http://localhost:%d/%s\n", id)
+// 	command := fmt.Sprintf("Generate webhook: %s\n\nCommand to copy:\nssh -R 127.0.0.1:%d:%s localhost -p 2222 tunnel\n", webhookURL, generatedPort, host)
+// 	return command, err
+// }
 
 var logo = `
 
