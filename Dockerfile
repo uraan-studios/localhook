@@ -19,6 +19,9 @@ WORKDIR /app
 # Copy the built binary from the builder stage
 COPY --from=builder /app/bin/sshtunnel ./sshtunnel
 
+# Copy the SSH keys into the container
+COPY keys /app/keys
+
 # Expose necessary ports
 EXPOSE 5000 2222
 
