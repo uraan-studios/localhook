@@ -12,6 +12,7 @@ type WelcomeModel struct {
 	selected map[int]struct{}
 	choice   int
 	done     bool
+	quit     bool
 }
 
 // Implement TerminalModel methods for WelcomeModel
@@ -24,6 +25,7 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
+			m.quit = true
 			return m, tea.Quit
 		case "up", "k":
 			if m.cursor > 0 {
@@ -45,7 +47,8 @@ func (m WelcomeModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m WelcomeModel) View() string {
 	if m.done {
-		return fmt.Sprintf("%s\n\nYou selected: %d\n", logo, m.choice)
+
+		return ""
 	}
 
 	s := fmt.Sprintf("%s\n\nChoose an option:\n\n", logo)
@@ -70,6 +73,10 @@ func (m WelcomeModel) View() string {
 
 func (m WelcomeModel) GetChoice() int {
 	return m.choice
+}
+
+func (m WelcomeModel) CloseConn() bool {
+	return m.quit
 }
 
 // Implement a struct that satisfies Terminal

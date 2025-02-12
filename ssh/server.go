@@ -2,9 +2,9 @@ package ssh
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"math/rand"
+	"net"
 	"net/url"
 	"os"
 	"sync"
@@ -15,26 +15,32 @@ import (
 	"github.com/teris-io/shortid"
 	"github.com/yas1nshah/ssh-webhook-tunnel/ui"
 	gossh "golang.org/x/crypto/ssh"
+	"golang.org/x/term"
 )
 
 type Session struct {
 	Sesssion    ssh.Session
 	Destination string
+	IsWebhook   bool
 }
 
 var Clients sync.Map
 
 type SSHHandler struct {
+	domain   string
+	httpPort int
 }
 
-func NewSSHHandler() *SSHHandler {
-	return &SSHHandler{}
+func NewSSHHandler(liveDomain string, port int) *SSHHandler {
+	return &SSHHandler{
+		domain:   liveDomain,
+		httpPort: port,
+	}
 }
 
-func StartSSHServer() error {
-	sshPort := ":2222"
+func StartSSHServer(sshPort string, httpPort int, domain string) error {
 	// respCh := make(chan string)
-	handler := NewSSHHandler()
+	handler := NewSSHHandler(domain, httpPort)
 
 	fwHandler := &ssh.ForwardedTCPHandler{}
 	server := ssh.Server{
@@ -87,12 +93,40 @@ func StartSSHServer() error {
 }
 
 func randomPort() int {
+	rand.Seed(time.Now().UnixNano()) // Seed the random number generator
 	min := 49152
 	max := 65535
-	return min + rand.Intn(max-min+1)
+
+	for {
+		port := min + rand.Intn(max-min+1)
+		if isPortAvailable(port) {
+			return port
+		}
+	}
+}
+
+func isPortAvailable(port int) bool {
+	addr := net.JoinHostPort("localhost", fmt.Sprintf("%d", port))
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return false // Port is in use
+	}
+	listener.Close() // Close the listener if it's available
+	return true
 }
 
 func (h *SSHHandler) HandleSSHSession(session ssh.Session) {
+	if session.RawCommand() == "tunnel" {
+		session.Write([]byte("\nYour Local Tunnel is now Live...(30 mins)\n"))
+		select {
+		case <-session.Context().Done():
+			// Context canceled, exit
+		case <-time.After(30 * time.Minute):
+			// Timeout reached, close session
+			session.Close()
+		}
+	}
+
 	input := session
 	output := session
 	p := tea.NewProgram(ui.InitWlcmTerminal(), tea.WithInput(input), tea.WithOutput(output))
@@ -107,8 +141,10 @@ func (h *SSHHandler) HandleSSHSession(session ssh.Session) {
 	// Retrieve the user's choice from the model
 	var choice int
 	if model, ok := m.(ui.WelcomeModel); ok {
-		fmt.Println(model.GetChoice())
 		choice = model.GetChoice()
+		if model.CloseConn() {
+			return
+		}
 		// return model.Choice()
 	}
 
@@ -117,28 +153,109 @@ func (h *SSHHandler) HandleSSHSession(session ssh.Session) {
 	switch choice {
 	case 1:
 		{
+			p := tea.NewProgram(ui.InitWebhookTerminal(), tea.WithInput(input), tea.WithOutput(output))
 
-		}
-	}
-	// session.Write([]byte(fmt.Sprintf("Terminal Killed %v", choice)))
-
-	// Create a buffer for reading user input
-	buf := make([]byte, 1024)
-
-	for {
-		time.Sleep(time.Millisecond)
-
-		n, err := session.Read(buf)
-		if err != nil {
-			if err == io.EOF {
-				break // Exit loop on session close
+			// Run the program and capture the model state
+			m, err := p.Run()
+			if err != nil {
+				fmt.Fprintf(output, "Alas, there's been an error: %v\n", err)
+				os.Exit(1)
 			}
-			session.Write([]byte(fmt.Sprintf("Read error: %v\n", err)))
-			break
+
+			// Retrieve the user's choice from the model
+			var host string
+			var port string
+			var path string
+
+			if model, ok := m.(ui.WebhookModel); ok {
+				host, port, path = model.GetLocalURL()
+
+				if model.CloseConn() {
+					return
+				}
+				// return model.Choice()
+			}
+
+			p.ReleaseTerminal()
+
+			term := term.NewTerminal(session, "$ ")
+			for {
+				generatedPort := randomPort()
+				id := shortid.MustGenerate()
+				// destination, err := url.Parse("http://" + host + port + path)
+				// if err != nil {
+				// 	log.Fatal(err)
+				// }
+
+				// host := destination.Host
+				internalSession := Session{
+					Sesssion:    session,
+					Destination: "http://" + host + ":" + port + path,
+					IsWebhook:   true,
+				}
+				Clients.Store(id, internalSession)
+
+				var webhookURL string
+				if h.domain == "localhost" {
+					webhookURL = fmt.Sprintf("http://%s:%d/%s\n", h.domain, h.httpPort, id)
+				} else {
+					webhookURL = fmt.Sprintf("http://%s/%s\n", h.domain, id)
+
+				}
+				command := fmt.Sprintf("Live Webhook URL:\n\t%s\n\nRun Command (copy and run to tunnel traffic):\n\tssh -R 127.0.0.1:%d:%s:%s localhost -p 2222 tunnel\n\n\n-----------------\n", webhookURL, generatedPort, host, port)
+				term.Write([]byte(command))
+				return
+			}
 		}
 
-		// Echo the user input
-		session.Write(buf[:n])
+	case 2:
+		{
+			p := tea.NewProgram(ui.InitWebhookTerminal(), tea.WithInput(input), tea.WithOutput(output))
+
+			// Run the program and capture the model state
+			m, err := p.Run()
+			if err != nil {
+				fmt.Fprintf(output, "Alas, there's been an error: %v\n", err)
+				os.Exit(1)
+			}
+
+			// Retrieve the user's choice from the model
+			var host string
+			var port string
+
+			if model, ok := m.(ui.WebhookModel); ok {
+				host, port, _ = model.GetLocalURL()
+				if model.CloseConn() {
+					return
+				}
+				// return model.Choice()
+			}
+
+			p.ReleaseTerminal()
+
+			term := term.NewTerminal(session, "$ ")
+			for {
+				generatedPort := randomPort()
+				id := shortid.MustGenerate()
+				internalSession := Session{
+					Sesssion:    session,
+					Destination: "http://" + host + ":" + port,
+					IsWebhook:   false,
+				}
+				Clients.Store(id, internalSession)
+
+				var webhookURL string
+				if h.domain == "localhost" {
+					webhookURL = fmt.Sprintf("http://%s:%d/%s\n", h.domain, h.httpPort, id)
+				} else {
+					webhookURL = fmt.Sprintf("http://%s/%s\n", h.domain, id)
+
+				}
+				command := fmt.Sprintf("Live Website URL:\n\t%s\n\nRun Command (copy and run to tunnel traffic):\n\tssh -R 127.0.0.1:%d:%s:%s localhost -p 2222 tunnel\n\n\n-----------------\n", webhookURL, generatedPort, host, port)
+				term.Write([]byte(command))
+				return
+			}
+		}
 	}
 
 }
@@ -155,53 +272,14 @@ func CreateNewHook(localURL string, session ssh.Session) (string, error) {
 	internalSession := Session{
 		Sesssion:    session,
 		Destination: destination.String(),
+		IsWebhook:   true,
 	}
 	Clients.Store(id, internalSession)
 
-	webhookURL := fmt.Sprintf("http://localhost:5000/%s\n", id)
+	webhookURL := fmt.Sprintf("http://localhost:%d/%s\n", id)
 	command := fmt.Sprintf("Generate webhook: %s\n\nCommand to copy:\nssh -R 127.0.0.1:%d:%s localhost -p 2222 tunnel\n", webhookURL, generatedPort, host)
 	return command, err
 }
-
-// func (h *SSHHandler) HandleSSHSession(session ssh.Session) {
-
-// 	if session.RawCommand() == "tunnel" {
-// 		session.Write([]byte("Tunneling traffic...\n"))
-// 		<-session.Context().Done()
-// 		return
-// 	}
-
-// 	term := term.NewTerminal(session, "$ ")
-// 	msg := fmt.Sprintf("%s\n\nWelcome to LocalWeb!\n\nenter the webhook destination:\n", logo)
-// 	term.Write([]byte(msg))
-// 	for {
-// 		input, err := term.ReadLine()
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-
-// 		generatedPort := randomPort()
-// 		id := shortid.MustGenerate()
-// 		destination, err := url.Parse(input)
-// 		if err != nil {
-// 			log.Fatal(err)
-// 		}
-
-// 		host := destination.Host
-// 		internalSession := Session{
-// 			Sesssion:    session,
-// 			Destination: destination.String(),
-// 		}
-// 		Clients.Store(id, internalSession)
-
-// 		webhookURL := fmt.Sprintf("http://localhost:5000/%s\n", id)
-// 		command := fmt.Sprintf("Generate webhook: %s\n\nCommand to copy:\nssh -R 127.0.0.1:%d:%s localhost -p 2222 tunnel\n", webhookURL, generatedPort, host)
-// 		term.Write([]byte(command))
-// 		return
-
-// 	}
-
-// }
 
 var logo = `
 
